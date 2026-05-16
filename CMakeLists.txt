@@ -38,7 +38,7 @@ if(NOT roaring_FOUND)
   FetchContent_Declare(
     CRoaring
     GIT_REPOSITORY https://github.com/RoaringBitmap/CRoaring.git
-    GIT_TAG v2.1.1
+    GIT_TAG v4.7.0
   )
   
   set(ENABLE_ROARING_TESTS OFF CACHE BOOL "Disable CRoaring tests")

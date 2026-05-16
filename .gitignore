@@ -1,0 +1,31 @@
+# Build directories
+build/
+cmake_build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# VEB output
+*.veb
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+Dependencies/
+_deps/
+
+# CMake
+CMakeUserPresets.json
+
+# Generated files
+*.o
+*.so
+*.a
+*.dylib

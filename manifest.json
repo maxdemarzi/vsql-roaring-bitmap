@@ -1,0 +1,7 @@
+{
+  "name": "vsql_roaring_bitmap",
+  "version": "1.0.0",
+  "description": "64-bit Roaring Bitmap type for VillageSQL using CRoaring library",
+  "author": "maxdemarzi",
+  "license": "GPL-2.0"
+}

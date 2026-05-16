@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; if not, see <https://www.gnu.org/licenses/>.
 
-#include <villagesql/vsql.h>
+#include <villagesql/extension.h>
 
 #include <cinttypes>
 #include <cstddef>
@@ -24,19 +24,21 @@
 #include <string_view>
 #include <vector>
 
-#include <roaring64map.h>
+#include <roaring/roaring64map.hh>
 
-using namespace vsql;
+using namespace villagesql::extension_builder;
+using namespace villagesql::func_builder;
+using namespace roaring;
 
 // Maximum size for persisted roaring bitmap (in bytes)
-constrexpr int64_t kRoaring64MaxPersistedLength = 8 * 1024 * 1024;  // 8MB max
+constexpr int64_t kRoaring64MaxPersistedLength = 8 * 1024 * 1024;  // 8MB max
 
 // Deserialize binary data to roaring64_bitmap_t
-roaring64_bitmap_t* deserialize_roaring64(const Span<const unsigned char>& data) {
+Roaring64Map deserialize_roaring64(const Span<const unsigned char>& data) {
   if (data.empty()) {
-    return roaring64_bitmap_create();
+    return roaring::roaring64_bitmap_create();
   }
-  return roaring64_bitmap_deserialize_internal(data.data(), data.size());
+  return roaring::roaring64_bitmap_deserialize_internal(data.data(), data.size());
 }
 
 // Serialize roaring64_bitmap_t to binary

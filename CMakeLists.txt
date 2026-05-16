@@ -23,10 +23,10 @@ set(EXTENSION_NAME "vsql_roaring_bitmap")
 
 # Find VillageSQL SDK
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-find_package(VillageSQLExtensionFramework REQUIRED)
+find_package(VillageSQL REQUIRED)
 
-message(STATUS "VillageSQL SDK found at: ${VillageSQLExtensionFramework_PREFIX}")
-message(STATUS "VillageSQL include dir: ${VillageSQLExtensionFramework_INCLUDE_DIR}")
+message(STATUS "VillageSQL SDK found at: ${VillageSQL_PREFIX}")
+message(STATUS "VillageSQL include dir: ${VillageSQL_INCLUDE_DIR}")
 
 # Find or build CRoaring library
 find_package(roaring QUIET)

@@ -20,6 +20,16 @@ A VillageSQL extension providing a `ROARING64` custom data type for efficient 64
 - OpenSSL development libraries
 - CRoaring library (automatically fetched if not found)
 
+### Development Branch trick
+
+Switch out the include directory for the include-dev directory.
+
+```
+cd ~/build/villagesql/villagesql-extension-sdk-0.0.4-dev/
+mv include include-old
+mv include-dev include
+```
+
 ### Build Instructions
 
 1. Create a build directory and configure:
@@ -28,7 +38,6 @@ A VillageSQL extension providing a `ROARING64` custom data type for efficient 64
    ```bash
    mkdir build
    cd build
-   cmake .. -DVillageSQL_SDK_DIR=/home/maxdemarzi/build/villagesql/villagesql-extension-sdk-0.0.4-dev/include-dev/villagesql
    cmake .. -DVillageSQL_BUILD_DIR=$HOME/build/villagesql
    ```
 

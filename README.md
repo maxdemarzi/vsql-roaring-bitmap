@@ -28,6 +28,7 @@ A VillageSQL extension providing a `ROARING64` custom data type for efficient 64
    ```bash
    mkdir build
    cd build
+   cmake .. -DVillageSQL_SDK_DIR=/home/maxdemarzi/build/villagesql/villagesql-extension-sdk-0.0.4-dev/include-dev/villagesql
    cmake .. -DVillageSQL_BUILD_DIR=$HOME/build/villagesql
    ```
 

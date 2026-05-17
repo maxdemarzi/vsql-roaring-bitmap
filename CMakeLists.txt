@@ -22,6 +22,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(EXTENSION_NAME "vsql_roaring_bitmap")
 
 # Find VillageSQL SDK
+SET(VillageSQL_SDK_DIR "/home/maxdemarzi/build/villagesql/villagesql-extension-sdk-0.0.4-dev")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(VillageSQL REQUIRED)
 
@@ -34,7 +35,11 @@ find_package(roaring QUIET)
 if(NOT roaring_FOUND)
   message(STATUS "CRoaring not found, attempting to fetch from GitHub...")
   include(FetchContent)
-  
+
+  # Build CRoaring as PIC so the static library can be linked into our
+  # shared extension object.
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
   FetchContent_Declare(
     CRoaring
     GIT_REPOSITORY https://github.com/RoaringBitmap/CRoaring.git

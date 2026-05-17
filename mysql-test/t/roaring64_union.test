@@ -1,0 +1,8 @@
+# Test roaring64_union for ROARING64 custom type
+
+INSTALL EXTENSION vsql_roaring_bitmap;
+SELECT roaring64_union(
+  CAST('{1,2,3}' AS ROARING64),
+  CAST('{3,4,5}' AS ROARING64)
+) AS union_bitmap;
+UNINSTALL EXTENSION vsql_roaring_bitmap;

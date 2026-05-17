@@ -13,8 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; if not, see <https://www.gnu.org/licenses/>.
 
-#include <villagesql/extension.h>
+#include <villagesql/vsql.h>
 
+#include <charconv>
+#include <cctype>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -26,340 +28,274 @@
 
 #include <roaring/roaring64map.hh>
 
-using namespace villagesql::extension_builder;
-using namespace villagesql::func_builder;
 using namespace roaring;
+using namespace vsql;
 
-// Maximum size for persisted roaring bitmap (in bytes)
-constexpr int64_t kRoaring64MaxPersistedLength = 8 * 1024 * 1024;  // 8MB max
+static constexpr const char kROARING64[] = "ROARING64";
 
-// Deserialize binary data to roaring64_bitmap_t
-Roaring64Map deserialize_roaring64(const Span<const unsigned char>& data) {
-  if (data.empty()) {
-    return roaring::roaring64_bitmap_create();
-  }
-  return roaring::roaring64_bitmap_deserialize_internal(data.data(), data.size());
-}
+namespace {
 
-// Serialize roaring64_bitmap_t to binary
-std::vector<unsigned char> serialize_roaring64(roaring64_bitmap_t* bitmap) {
-  if (bitmap == nullptr) {
-    return std::vector<unsigned char>();
-  }
-  size_t size = roaring64_bitmap_size_in_bytes(bitmap);
-  if (size == 0) {
-    return std::vector<unsigned char>();
-  }
-  std::vector<unsigned char> buf(size);
-  roaring64_bitmap_serialize(bitmap, buf.data());
-  return buf;
-}
+bool parseRoaring64String(std::string_view in, Roaring64Map &bitmap,
+                          std::string &error_msg) {
+  bitmap = Roaring64Map();
+  size_t pos = 0;
 
-// from_string: "{1,5,10,255,1000}" -> binary roaring64 representation
-void roaring64_from_string(std::string_view from, CustomResult out) {
-  std::string input(from);
-  const char* s = input.c_str();
-  
-  while (*s == ' ') s++;
-  
-  if (*s != '{') {
-    out.warning("roaring64_from_string: missing '{'");
-    return;
-  }
-  s++;
-
-  roaring64_bitmap_t* bitmap = roaring64_bitmap_create();
-  if (bitmap == nullptr) {
-    out.error("roaring64_from_string: failed to create bitmap");
-    return;
-  }
-
-  auto buf = out.buffer();
-  
-  while (*s != '\0') {
-    while (*s == ' ') s++;
-    if (*s == '}') break;
-
-    char* endptr = nullptr;
-    uint64_t val = strtoull(s, &endptr, 10);
-    
-    if (endptr == s) {
-      out.warning("roaring64_from_string: parse error");
-      roaring64_bitmap_free(bitmap);
-      return;
+  auto skip_ws = [&]() {
+    while (pos < in.size() && std::isspace(static_cast<unsigned char>(in[pos]))) {
+      ++pos;
     }
-    
-    roaring64_bitmap_add(bitmap, val);
-    s = endptr;
+  };
 
-    while (*s == ' ') s++;
-    if (*s == ',') s++;
+  skip_ws();
+  if (pos >= in.size() || in[pos] != '{') {
+    error_msg = "ROARING64: expected '{' at beginning";
+    return false;
   }
-  
-  if (*s != '}') {
-    out.warning("roaring64_from_string: missing '}'");
-    roaring64_bitmap_free(bitmap);
-    return;
-  }
+  ++pos;
+  skip_ws();
 
-  // Serialize to binary format
-  size_t serialize_size = roaring64_bitmap_size_in_bytes(bitmap);
-  if (serialize_size > buf.size()) {
-    out.error("roaring64_from_string: output buffer too small");
-    roaring64_bitmap_free(bitmap);
-    return;
+  if (pos < in.size() && in[pos] == '}') {
+    ++pos;
+    skip_ws();
+    if (pos != in.size()) {
+      error_msg = "ROARING64: unexpected trailing characters after '}'";
+      return false;
+    }
+    return true;
   }
 
-  roaring64_bitmap_serialize(bitmap, buf.data());
-  out.set_length(serialize_size);
-  roaring64_bitmap_free(bitmap);
+  bool first_element = true;
+  while (pos < in.size()) {
+    skip_ws();
+    if (!first_element) {
+      if (pos >= in.size() || in[pos] != ',') {
+        error_msg = "ROARING64: expected ',' between elements";
+        return false;
+      }
+      ++pos;
+      skip_ws();
+    }
+    first_element = false;
+
+    if (pos >= in.size() ||
+        (!std::isdigit(static_cast<unsigned char>(in[pos])) && in[pos] != '+')) {
+      error_msg = "ROARING64: expected unsigned integer value";
+      return false;
+    }
+
+    size_t start = pos;
+    if (in[pos] == '+') {
+      ++pos;
+      if (pos >= in.size() || !std::isdigit(static_cast<unsigned char>(in[pos]))) {
+        error_msg = "ROARING64: invalid integer literal";
+        return false;
+      }
+    }
+    while (pos < in.size() && std::isdigit(static_cast<unsigned char>(in[pos]))) {
+      ++pos;
+    }
+
+    std::string_view token = in.substr(start, pos - start);
+    unsigned long long value = 0;
+    auto result = std::from_chars(token.data(), token.data() + token.size(), value);
+    if (result.ec != std::errc() || result.ptr != token.data() + token.size()) {
+      error_msg = "ROARING64: invalid integer literal";
+      return false;
+    }
+    bitmap.add(static_cast<uint64_t>(value));
+
+    skip_ws();
+    if (pos < in.size() && in[pos] == '}') {
+      ++pos;
+      skip_ws();
+      if (pos != in.size()) {
+        error_msg = "ROARING64: unexpected trailing characters after '}'";
+        return false;
+      }
+      return true;
+    }
+  }
+
+  error_msg = "ROARING64: missing closing '}'";
+  return false;
 }
 
-// to_string: binary roaring64 representation -> "{1,5,10,255,1000}"
+std::string roaring64ToString(const Roaring64Map &bitmap) {
+  std::string out = "{";
+  bool first = true;
+  for (auto it = bitmap.begin(); it != bitmap.end(); ++it) {
+    if (!first) {
+      out.push_back(',');
+    }
+    first = false;
+    out.append(std::to_string(*it));
+  }
+  out.push_back('}');
+  return out;
+}
+
+int roaring64CompareMaps(const Roaring64Map &a, const Roaring64Map &b) {
+  if (a == b) {
+    return 0;
+  }
+
+  auto ai = a.begin();
+  auto bi = b.begin();
+  auto aend = a.end();
+  auto bend = b.end();
+
+  while (ai != aend && bi != bend) {
+    uint64_t av = *ai;
+    uint64_t bv = *bi;
+    if (av < bv) {
+      return -1;
+    }
+    if (av > bv) {
+      return 1;
+    }
+    ++ai;
+    ++bi;
+  }
+
+  if (ai == aend) {
+    return -1;
+  }
+  return 1;
+}
+
+size_t roaring64HashMap(const Roaring64Map &bitmap) {
+  size_t hash = 1469598103934665603ULL;
+  for (auto it = bitmap.begin(); it != bitmap.end(); ++it) {
+    uint64_t value = *it;
+    for (size_t i = 0; i < sizeof(value); ++i) {
+      hash ^= static_cast<unsigned char>((value >> (i * 8)) & 0xff);
+      hash *= 1099511628211ULL;
+    }
+  }
+  return hash;
+}
+
+bool serializeRoaring64Map(const Roaring64Map &bitmap, CustomResult out,
+                           std::string_view context,
+                           std::string &error_msg) {
+  size_t bytes = bitmap.getSizeInBytes(true);
+  auto buf = out.buffer();
+  if (bytes > buf.size()) {
+    error_msg = std::string(context) + ": output buffer too small";
+    return false;
+  }
+  bitmap.write(reinterpret_cast<char *>(buf.data()), true);
+  out.set_length(bytes);
+  return true;
+}
+
+bool deserializeRoaring64Map(CustomArg in, Roaring64Map &bitmap,
+                             std::string &error_msg) {
+  try {
+    bitmap = Roaring64Map::read(reinterpret_cast<const char *>(in.value().data()),
+                                in.value().size());
+  } catch (const std::exception &e) {
+    error_msg = std::string("ROARING64: failed to deserialize bitmap: ") +
+                e.what();
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+void roaring64_from_string(std::string_view in, CustomResult out) {
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!parseRoaring64String(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+  if (!serializeRoaring64Map(bitmap, out, "ROARING64", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
 void roaring64_to_string(CustomArg in, StringResult out) {
   if (in.is_null()) {
     out.set_null();
     return;
   }
 
-  auto data = in.value();
-  if (data.empty()) {
-    auto buf = out.buffer();
-    if (buf.size() < 2) return;
-    buf[0] = '{';
-    buf[1] = '}';
-    out.set_length(2);
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
     return;
   }
-
-  roaring64_bitmap_t* bitmap = deserialize_roaring64(data);
-  if (bitmap == nullptr) {
-    out.warning("roaring64_to_string: deserialization failed");
-    return;
-  }
-
-  auto buf = out.buffer();
-  size_t pos = 0;
-  
-  if (pos >= buf.size()) {
-    roaring64_bitmap_free(bitmap);
-    return;
-  }
-  buf[pos++] = '{';
-
-  roaring64_iterator_t iter;
-  roaring64_iterator_init(bitmap, &iter);
-  
-  bool first = true;
-  while (roaring64_iterator_has_value(&iter)) {
-    uint64_t val = roaring64_iterator_value(&iter);
-    
-    if (!first) {
-      if (pos >= buf.size()) {
-        roaring64_bitmap_free(bitmap);
-        return;
-      }
-      buf[pos++] = ',';
-    }
-    first = false;
-
-    int written = snprintf(buf.data() + pos, buf.size() - pos, "% " PRIu64, val);
-    if (written < 0 || pos + static_cast<size_t>(written) >= buf.size()) {
-      roaring64_bitmap_free(bitmap);
-      return;
-    }
-    pos += static_cast<size_t>(written);
-    
-    roaring64_iterator_advance(&iter);
-  }
-
-  if (pos >= buf.size()) {
-    roaring64_bitmap_free(bitmap);
-    return;
-  }
-  buf[pos++] = '}';
-
-  out.set_length(pos);
-  roaring64_bitmap_free(bitmap);
+  out.set(roaring64ToString(bitmap));
 }
 
-// compare: lexicographic comparison of serialized bitmaps
 int roaring64_compare(CustomArg a, CustomArg b) {
-  auto data_a = a.value();
-  auto data_b = b.value();
-  
-  size_t min_size = (data_a.size() < data_b.size()) ? data_a.size() : data_b.size();
-  int cmp = std::memcmp(data_a.data(), data_b.data(), min_size);
-  if (cmp != 0) return cmp;
-  
-  if (data_a.size() < data_b.size()) return -1;
-  if (data_a.size() > data_b.size()) return 1;
-  return 0;
+  Roaring64Map left;
+  Roaring64Map right;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(a, left, error_msg)) {
+    return -1;
+  }
+  if (!deserializeRoaring64Map(b, right, error_msg)) {
+    return 1;
+  }
+  return roaring64CompareMaps(left, right);
 }
 
-// Union: (ROARING64, ROARING64) -> ROARING64
-void roaring64_union(CustomArg a, CustomArg b, CustomResult out) {
-  if (a.is_null() || b.is_null()) {
+size_t roaring64_hash(CustomArg in) {
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    return 0;
+  }
+  return roaring64HashMap(bitmap);
+}
+
+void roaring64_union(CustomArg in_l, CustomArg in_r, CustomResult out) {
+  if (in_l.is_null() || in_r.is_null()) {
     out.set_null();
     return;
   }
 
-  roaring64_bitmap_t* bitmap_a = deserialize_roaring64(a.value());
-  roaring64_bitmap_t* bitmap_b = deserialize_roaring64(b.value());
-  
-  if (bitmap_a == nullptr || bitmap_b == nullptr) {
-    if (bitmap_a) roaring64_bitmap_free(bitmap_a);
-    if (bitmap_b) roaring64_bitmap_free(bitmap_b);
-    out.error("roaring64_union: deserialization failed");
+  Roaring64Map left_bitmap;
+  Roaring64Map right_bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in_l, left_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+  if (!deserializeRoaring64Map(in_r, right_bitmap, error_msg)) {
+    out.error(error_msg);
     return;
   }
 
-  roaring64_bitmap_t* result = roaring64_bitmap_copy(bitmap_a);
-  if (result == nullptr) {
-    roaring64_bitmap_free(bitmap_a);
-    roaring64_bitmap_free(bitmap_b);
-    out.error("roaring64_union: memory allocation failed");
-    return;
+  Roaring64Map result = left_bitmap;
+  result |= right_bitmap;
+  if (!serializeRoaring64Map(result, out, "ROARING64::union", error_msg)) {
+    out.error(error_msg);
   }
-
-  roaring64_bitmap_or_inplace(result, bitmap_b);
-
-  size_t serialize_size = roaring64_bitmap_size_in_bytes(result);
-  auto buf = out.buffer();
-  
-  if (buf.size() < serialize_size) {
-    out.error("roaring64_union: output buffer too small");
-    roaring64_bitmap_free(bitmap_a);
-    roaring64_bitmap_free(bitmap_b);
-    roaring64_bitmap_free(result);
-    return;
-  }
-
-  roaring64_bitmap_serialize(result, buf.data());
-  out.set_length(serialize_size);
-
-  roaring64_bitmap_free(bitmap_a);
-  roaring64_bitmap_free(bitmap_b);
-  roaring64_bitmap_free(result);
 }
 
-// Intersection: (ROARING64, ROARING64) -> ROARING64
-void roaring64_intersection(CustomArg a, CustomArg b, CustomResult out) {
-  if (a.is_null() || b.is_null()) {
-    out.set_null();
-    return;
-  }
-
-  roaring64_bitmap_t* bitmap_a = deserialize_roaring64(a.value());
-  roaring64_bitmap_t* bitmap_b = deserialize_roaring64(b.value());
-  
-  if (bitmap_a == nullptr || bitmap_b == nullptr) {
-    if (bitmap_a) roaring64_bitmap_free(bitmap_a);
-    if (bitmap_b) roaring64_bitmap_free(bitmap_b);
-    out.error("roaring64_intersection: deserialization failed");
-    return;
-  }
-
-  roaring64_bitmap_t* result = roaring64_bitmap_and(bitmap_a, bitmap_b);
-  
-  if (result == nullptr) {
-    roaring64_bitmap_free(bitmap_a);
-    roaring64_bitmap_free(bitmap_b);
-    out.error("roaring64_intersection: operation failed");
-    return;
-  }
-
-  size_t serialize_size = roaring64_bitmap_size_in_bytes(result);
-  auto buf = out.buffer();
-  
-  if (buf.size() < serialize_size) {
-    out.error("roaring64_intersection: output buffer too small");
-    roaring64_bitmap_free(bitmap_a);
-    roaring64_bitmap_free(bitmap_b);
-    roaring64_bitmap_free(result);
-    return;
-  }
-
-  roaring64_bitmap_serialize(result, buf.data());
-  out.set_length(serialize_size);
-
-  roaring64_bitmap_free(bitmap_a);
-  roaring64_bitmap_free(bitmap_b);
-  roaring64_bitmap_free(result);
-}
-
-// Contains: (ROARING64, INT) -> INT (1 or 0)
-void roaring64_contains(CustomArg bitmap, IntArg value, IntResult out) {
-  if (bitmap.is_null() || value.is_null()) {
-    out.set_null();
-    return;
-  }
-
-  roaring64_bitmap_t* rb = deserialize_roaring64(bitmap.value());
-  if (rb == nullptr) {
-    out.error("roaring64_contains: deserialization failed");
-    return;
-  }
-
-  bool result = roaring64_bitmap_contains(rb, static_cast<uint64_t>(value.value()));
-  out.set(result ? 1 : 0);
-  
-  roaring64_bitmap_free(rb);
-}
-
-// Cardinality: ROARING64 -> INT
-void roaring64_cardinality(CustomArg bitmap, IntResult out) {
-  if (bitmap.is_null()) {
-    out.set_null();
-    return;
-  }
-
-  roaring64_bitmap_t* rb = deserialize_roaring64(bitmap.value());
-  if (rb == nullptr) {
-    out.error("roaring64_cardinality: deserialization failed");
-    return;
-  }
-
-  uint64_t card = roaring64_bitmap_get_cardinality(rb);
-  out.set(static_cast<long long>(card));
-  
-  roaring64_bitmap_free(rb);
-}
-
-static constexpr const char kRoaring64TypeName[] = "ROARING64";
-
-constexpr auto ROARING64 = vsql::make_type<kRoaring64TypeName>()
-    .persisted_length(-1)
-    .max_decode_buffer_length(256)
-    .max_persisted_length(kRoaring64MaxPersistedLength)
-    .from_string<&roaring64_from_string>()
-    .to_string<&roaring64_to_string>()
-    .compare<&roaring64_compare>()
-    .build();
+constexpr auto ROARING64_TYPE =
+    make_type<kROARING64>()
+        .persisted_length(-1)
+        .max_decode_buffer_length(65536)
+        .intrinsic_default_str("{}")
+        .from_string<&roaring64_from_string>()
+        .to_string<&roaring64_to_string>()
+        .compare<&roaring64_compare>()
+        .hash<&roaring64_hash>()
+        .build();
 
 VEF_GENERATE_ENTRY_POINTS(
     make_extension()
-        .type(ROARING64)
+        .type(ROARING64_TYPE)
         .func(make_func<&roaring64_union>("roaring64_union")
-                  .returns(ROARING64)
-                  .param(ROARING64)
-                  .param(ROARING64)
-                  .deterministic()
-                  .build())
-        .func(make_func<&roaring64_intersection>("roaring64_intersection")
-                  .returns(ROARING64)
-                  .param(ROARING64)
-                  .param(ROARING64)
-                  .deterministic()
-                  .build())
-        .func(make_func<&roaring64_contains>("roaring64_contains")
-                  .returns(INT)
-                  .param(ROARING64)
-                  .param(INT)
-                  .deterministic()
-                  .build())
-        .func(make_func<&roaring64_cardinality>("roaring64_cardinality")
-                  .returns(INT)
-                  .param(ROARING64)
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
                   .deterministic()
                   .build()))
+

@@ -72,14 +72,16 @@ INSTALL EXTENSION vsql_roaring_bitmap;
 
 ### Creating Roaring Bitmaps
 
+Use `ROARING64::from_string('{...}')` to construct literals for the custom `ROARING64` type. The `CAST(... AS ROARING64)` syntax is not supported for this type.
+
 ```sql
 -- Create a bitmap from a set of integers
-SELECT CAST('{1,5,10,255,1000}' AS ROARING64) AS my_bitmap;
+SELECT ROARING64::from_string('{1,5,10,255,1000}') AS my_bitmap;
 
 -- Insert into a table
 CREATE TABLE bitmap_data (id INT PRIMARY KEY, bitmap ROARING64);
-INSERT INTO bitmap_data VALUES (1, CAST('{1,2,3,4,5}' AS ROARING64));
-INSERT INTO bitmap_data VALUES (2, CAST('{3,4,5,6,7}' AS ROARING64));
+INSERT INTO bitmap_data VALUES (1, ROARING64::from_string('{1,2,3,4,5}'));
+INSERT INTO bitmap_data VALUES (2, ROARING64::from_string('{3,4,5,6,7}'));
 ```
 
 ### Supported Operations
@@ -176,9 +178,9 @@ CREATE TABLE user_segments (
 );
 
 INSERT INTO user_segments VALUES 
-  ('premium', CAST('{101,102,105,110,201,202}' AS ROARING64)),
-  ('active_30d', CAST('{101,103,105,201,202,301}' AS ROARING64)),
-  ('churned', CAST('{104,106,107,200,302,303}' AS ROARING64));
+  ('premium', ROARING64::from_string('{101,102,105,110,201,202}')),
+  ('active_30d', ROARING64::from_string('{101,103,105,201,202,301}')),
+  ('churned', ROARING64::from_string('{104,106,107,200,302,303}'));
 
 -- Find users who are both premium and active
 SELECT roaring64_intersection(
@@ -204,9 +206,9 @@ CREATE TABLE role_permissions (
 );
 
 INSERT INTO role_permissions VALUES
-  (1, CAST('{1,2,3,4}' AS ROARING64)),  -- admin: all permissions
-  (2, CAST('{1,2}' AS ROARING64)),       -- editor: read, write
-  (3, CAST('{1}' AS ROARING64));         -- viewer: read only
+  (1, ROARING64::from_string('{1,2,3,4}')),  -- admin: all permissions
+  (2, ROARING64::from_string('{1,2}')),       -- editor: read, write
+  (3, ROARING64::from_string('{1}'));         -- viewer: read only
 
 -- Combine permissions from multiple roles
 SELECT roaring64_union(
@@ -258,12 +260,12 @@ The extension can be tested with:
 INSTALL EXTENSION vsql_roaring_bitmap;
 
 -- Basic type test
-SELECT CAST('{1,2,3}' AS ROARING64);
+SELECT ROARING64::from_string('{1,2,3}');
 
 -- Function tests
-SELECT roaring64_cardinality(CAST('{1,2,3}' AS ROARING64));  -- 3
-SELECT roaring64_contains(CAST('{1,2,3}' AS ROARING64), 2);  -- 1
-SELECT roaring64_contains(CAST('{1,2,3}' AS ROARING64), 5);  -- 0
+SELECT roaring64_cardinality(ROARING64::from_string('{1,2,3}'));  -- 3
+SELECT roaring64_contains(ROARING64::from_string('{1,2,3}'), 2);  -- 1
+SELECT roaring64_contains(ROARING64::from_string('{1,2,3}'), 5);  -- 0
 ```
 
 ## References

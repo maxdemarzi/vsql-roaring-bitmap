@@ -228,7 +228,16 @@ void roaring64_to_string(CustomArg in, StringResult out) {
     out.error(error_msg);
     return;
   }
-  out.set(roaring64ToString(bitmap));
+
+  std::string value = roaring64ToString(bitmap);
+  auto buf = out.buffer();
+  size_t len = value.size();
+  if (len > buf.size()) {
+    out.error("ROARING64: output buffer too small");
+    return;
+  }
+  memcpy(buf.data(), value.data(), len);
+  out.set_length(static_cast<size_t>(len));
 }
 
 int roaring64_compare(CustomArg a, CustomArg b) {

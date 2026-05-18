@@ -262,6 +262,174 @@ size_t roaring64_hash(CustomArg in) {
   return roaring64HashMap(bitmap);
 }
 
+void roaring64_add(CustomArg in, IntArg value, CustomResult out) {
+  if (in.is_null() || value.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  bitmap.add(static_cast<uint64_t>(value.value()));
+  if (!serializeRoaring64Map(bitmap, out, "ROARING64::add", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
+void roaring64_remove(CustomArg in, IntArg value, CustomResult out) {
+  if (in.is_null() || value.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  bitmap.remove(static_cast<uint64_t>(value.value()));
+  if (!serializeRoaring64Map(bitmap, out, "ROARING64::remove", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
+void roaring64_contains(CustomArg in, IntArg value, IntResult out) {
+  if (in.is_null() || value.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  out.set(bitmap.contains(static_cast<uint64_t>(value.value())) ? 1 : 0);
+}
+
+void roaring64_cardinality(CustomArg in, IntResult out) {
+  if (in.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  out.set(static_cast<int64_t>(bitmap.cardinality()));
+}
+
+void roaring64_is_empty(CustomArg in, IntResult out) {
+  if (in.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  out.set(bitmap.isEmpty() ? 1 : 0);
+}
+
+void roaring64_clear(CustomArg in, CustomResult out) {
+  if (in.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  if (!serializeRoaring64Map(Roaring64Map(), out, "ROARING64::clear", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
+void roaring64_run_optimize(CustomArg in, CustomResult out) {
+  if (in.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  bitmap.runOptimize();
+  if (!serializeRoaring64Map(bitmap, out, "ROARING64::run_optimize", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
+void roaring64_equals(CustomArg in_l, CustomArg in_r, IntResult out) {
+  if (in_l.is_null() || in_r.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map left_bitmap;
+  Roaring64Map right_bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in_l, left_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+  if (!deserializeRoaring64Map(in_r, right_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  out.set(left_bitmap == right_bitmap ? 1 : 0);
+}
+
+void roaring64_swap(CustomArg in_l, CustomArg in_r, CustomResult out) {
+  if (in_l.is_null() || in_r.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map left_bitmap;
+  Roaring64Map right_bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in_l, left_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+  if (!deserializeRoaring64Map(in_r, right_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  std::swap(left_bitmap, right_bitmap);
+  if (!serializeRoaring64Map(left_bitmap, out, "ROARING64::swap", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
 void roaring64_union(CustomArg in_l, CustomArg in_r, CustomResult out) {
   if (in_l.is_null() || in_r.is_null()) {
     out.set_null();
@@ -376,6 +544,56 @@ constexpr auto ROARING64_TYPE =
 VEF_GENERATE_ENTRY_POINTS(
     make_extension()
         .type(ROARING64_TYPE)
+        .func(make_func<&roaring64_add>("roaring64_add")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .param(INT)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_remove>("roaring64_remove")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .param(INT)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_contains>("roaring64_contains")
+                  .returns(INT)
+                  .param(ROARING64_TYPE)
+                  .param(INT)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_cardinality>("roaring64_cardinality")
+                  .returns(INT)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_is_empty>("roaring64_is_empty")
+                  .returns(INT)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_clear>("roaring64_clear")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_run_optimize>("roaring64_run_optimize")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_equals>("roaring64_equals")
+                  .returns(INT)
+                  .param(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_swap>("roaring64_swap")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
         .func(make_func<&roaring64_union>("roaring64_union")
                   .returns(ROARING64_TYPE)
                   .param(ROARING64_TYPE)

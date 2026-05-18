@@ -121,6 +121,70 @@ FROM bitmap_data;
 -- Result: 5 for id=1, 5 for id=2
 ```
 
+#### Add / Remove
+```sql
+-- Add a value to the bitmap and return a new bitmap
+SELECT roaring64_add(
+  ROARING64::from_string('{1,2}'),
+  3
+) AS added_bitmap;
+-- Result: {1,2,3}
+
+-- Remove a value from the bitmap and return a new bitmap
+SELECT roaring64_remove(
+  ROARING64::from_string('{1,2,3}'),
+  2
+) AS removed_bitmap;
+-- Result: {1,3}
+```
+
+#### Clear and Empty Checks
+```sql
+-- Clear a bitmap
+SELECT roaring64_clear(
+  ROARING64::from_string('{1,2,3}')
+) AS cleared_bitmap;
+-- Result: {}
+
+-- Check whether a bitmap is empty
+SELECT roaring64_is_empty(
+  ROARING64::from_string('{}')
+) AS is_empty_bitmap;
+-- Result: 1
+```
+
+#### Optimization
+```sql
+-- Run internal bitmap optimization
+SELECT roaring64_run_optimize(
+  ROARING64::from_string('{1,2,3}')
+) AS optimized_bitmap;
+-- Result: {1,2,3}
+```
+
+#### Equality and Swap
+```sql
+-- Check whether two bitmaps are equal
+SELECT roaring64_equals(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{1,2,3}')
+) AS equal_bitmap;
+-- Result: 1
+
+SELECT roaring64_equals(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{1,2,4}')
+) AS unequal_bitmap;
+-- Result: 0
+
+-- Swap two bitmaps and return the swapped first operand
+SELECT roaring64_swap(
+  ROARING64::from_string('{1,2}'),
+  ROARING64::from_string('{3,4}')
+) AS swapped_bitmap;
+-- Result: {3,4}
+```
+
 #### Difference (A \ B)
 ```sql
 -- Remove elements from the first bitmap that appear in the second
@@ -171,8 +235,15 @@ Internally, bitmaps are stored in CRoaring's portable serialization format, whic
 | `roaring64_intersection` | ROARING64, ROARING64 | ROARING64 | Intersection of two bitmaps (AND operation) |
 | `roaring64_difference` | ROARING64, ROARING64 | ROARING64 | Difference of two bitmaps (A \ B) |
 | `roaring64_symmetric_difference` | ROARING64, ROARING64 | ROARING64 | Symmetric difference of two bitmaps (XOR) |
+| `roaring64_add` | ROARING64, INT | ROARING64 | Add a value to a bitmap |
+| `roaring64_remove` | ROARING64, INT | ROARING64 | Remove a value from a bitmap |
+| `roaring64_clear` | ROARING64 | ROARING64 | Return an empty bitmap |
+| `roaring64_run_optimize` | ROARING64 | ROARING64 | Optimize bitmap internals |
+| `roaring64_equals` | ROARING64, ROARING64 | INT | Check whether two bitmaps are equal |
+| `roaring64_swap` | ROARING64, ROARING64 | ROARING64 | Swap two bitmaps and return the first swapped operand |
 | `roaring64_contains` | ROARING64, INT | INT | Test membership (returns 1 or 0) |
 | `roaring64_cardinality` | ROARING64 | INT | Count elements in bitmap |
+| `roaring64_is_empty` | ROARING64 | INT | Check whether bitmap is empty |
 
 ## Performance Characteristics
 

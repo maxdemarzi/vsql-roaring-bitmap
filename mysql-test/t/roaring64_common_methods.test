@@ -1,0 +1,47 @@
+# Test roaring64 common methods for ROARING64 custom type
+
+INSTALL EXTENSION vsql_roaring_bitmap;
+SELECT roaring64_add(
+  ROARING64::from_string('{1,2}'),
+  3
+) AS added_bitmap;
+SELECT roaring64_remove(
+  ROARING64::from_string('{1,2,3}'),
+  2
+) AS removed_bitmap;
+SELECT roaring64_contains(
+  ROARING64::from_string('{1,2,3}'),
+  2
+) AS contains_two;
+SELECT roaring64_contains(
+  ROARING64::from_string('{1,2,3}'),
+  5
+) AS contains_five;
+SELECT roaring64_cardinality(
+  ROARING64::from_string('{1,2,3,4,5}')
+) AS card;
+SELECT roaring64_is_empty(
+  ROARING64::from_string('{}')
+) AS is_empty_bitmap;
+SELECT roaring64_is_empty(
+  ROARING64::from_string('{1}')
+) AS is_empty_nonempty;
+SELECT roaring64_clear(
+  ROARING64::from_string('{1,2,3}')
+) AS cleared_bitmap;
+SELECT roaring64_run_optimize(
+  ROARING64::from_string('{1,2,3}')
+) AS optimized_bitmap;
+SELECT roaring64_equals(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{1,2,3}')
+) AS equal_bitmap;
+SELECT roaring64_equals(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{1,2,4}')
+) AS unequal_bitmap;
+SELECT roaring64_swap(
+  ROARING64::from_string('{1,2}'),
+  ROARING64::from_string('{3,4}')
+) AS swapped_bitmap;
+UNINSTALL EXTENSION vsql_roaring_bitmap;

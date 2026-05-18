@@ -1,0 +1,134 @@
+# Test roaring64 common methods for ROARING64 custom type
+
+INSTALL EXTENSION vsql_roaring_bitmap;
+Query OK, 0 rows affected (0.00 sec)
+
+SELECT roaring64_add(
+  ROARING64::from_string('{1,2}'),
+  3
+) AS added_bitmap;
++--------------+
+| added_bitmap |
++--------------+
+| {1,2,3}      |
++--------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_remove(
+  ROARING64::from_string('{1,2,3}'),
+  2
+) AS removed_bitmap;
++----------------+
+| removed_bitmap |
++----------------+
+| {1,3}          |
++----------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_contains(
+  ROARING64::from_string('{1,2,3}'),
+  2
+) AS contains_two;
++--------------+
+| contains_two |
++--------------+
+|            1 |
++--------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_contains(
+  ROARING64::from_string('{1,2,3}'),
+  5
+) AS contains_five;
++---------------+
+| contains_five |
++---------------+
+|             0 |
++---------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_cardinality(
+  ROARING64::from_string('{1,2,3,4,5}')
+) AS card;
++------+
+| card |
++------+
+|    5 |
++------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_is_empty(
+  ROARING64::from_string('{}')
+) AS is_empty_bitmap;
++----------------+
+| is_empty_bitmap |
++----------------+
+|              1 |
++----------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_is_empty(
+  ROARING64::from_string('{1}')
+) AS is_empty_nonempty;
++---------------------+
+| is_empty_nonempty |
++---------------------+
+|                   0 |
++---------------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_clear(
+  ROARING64::from_string('{1,2,3}')
+) AS cleared_bitmap;
++----------------+
+| cleared_bitmap |
++----------------+
+| {}             |
++----------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_run_optimize(
+  ROARING64::from_string('{1,2,3}')
+) AS optimized_bitmap;
++-----------------+
+| optimized_bitmap |
++-----------------+
+| {1,2,3}         |
++-----------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_equals(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{1,2,3}')
+) AS equal_bitmap;
++--------------+
+| equal_bitmap |
++--------------+
+|            1 |
++--------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_equals(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{1,2,4}')
+) AS unequal_bitmap;
++----------------+
+| unequal_bitmap |
++----------------+
+|              0 |
++----------------+
+1 row in set (0.00 sec)
+
+SELECT roaring64_swap(
+  ROARING64::from_string('{1,2}'),
+  ROARING64::from_string('{3,4}')
+) AS swapped_bitmap;
++----------------+
+| swapped_bitmap |
++----------------+
+| {3,4}          |
++----------------+
+1 row in set (0.00 sec)
+
+UNINSTALL EXTENSION vsql_roaring_bitmap;
+Query OK, 0 rows affected (0.00 sec)

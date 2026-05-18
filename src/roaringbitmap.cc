@@ -287,6 +287,81 @@ void roaring64_union(CustomArg in_l, CustomArg in_r, CustomResult out) {
   }
 }
 
+void roaring64_intersection(CustomArg in_l, CustomArg in_r, CustomResult out) {
+  if (in_l.is_null() || in_r.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map left_bitmap;
+  Roaring64Map right_bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in_l, left_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+  if (!deserializeRoaring64Map(in_r, right_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  Roaring64Map result = left_bitmap;
+  result &= right_bitmap;
+  if (!serializeRoaring64Map(result, out, "ROARING64::intersection", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
+void roaring64_difference(CustomArg in_l, CustomArg in_r, CustomResult out) {
+  if (in_l.is_null() || in_r.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map left_bitmap;
+  Roaring64Map right_bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in_l, left_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+  if (!deserializeRoaring64Map(in_r, right_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  Roaring64Map result = left_bitmap;
+  result -= right_bitmap;
+  if (!serializeRoaring64Map(result, out, "ROARING64::difference", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
+void roaring64_symmetric_difference(CustomArg in_l, CustomArg in_r, CustomResult out) {
+  if (in_l.is_null() || in_r.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map left_bitmap;
+  Roaring64Map right_bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in_l, left_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+  if (!deserializeRoaring64Map(in_r, right_bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  Roaring64Map result = left_bitmap;
+  result ^= right_bitmap;
+  if (!serializeRoaring64Map(result, out, "ROARING64::symmetric_difference", error_msg)) {
+    out.error(error_msg);
+  }
+}
+
 constexpr auto ROARING64_TYPE =
     make_type<kROARING64>()
         .persisted_length(-1)
@@ -302,6 +377,24 @@ VEF_GENERATE_ENTRY_POINTS(
     make_extension()
         .type(ROARING64_TYPE)
         .func(make_func<&roaring64_union>("roaring64_union")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_intersection>("roaring64_intersection")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_difference>("roaring64_difference")
+                  .returns(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .build())
+        .func(make_func<&roaring64_symmetric_difference>("roaring64_symmetric_difference")
                   .returns(ROARING64_TYPE)
                   .param(ROARING64_TYPE)
                   .param(ROARING64_TYPE)

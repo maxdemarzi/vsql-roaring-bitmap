@@ -121,6 +121,26 @@ FROM bitmap_data;
 -- Result: 5 for id=1, 5 for id=2
 ```
 
+#### Difference (A \ B)
+```sql
+-- Remove elements from the first bitmap that appear in the second
+SELECT roaring64_difference(
+  ROARING64::from_string('{1,2,3,4}'),
+  ROARING64::from_string('{3,4,5}')
+) AS difference_bitmap;
+-- Result: {1,2}
+```
+
+#### Symmetric Difference (XOR)
+```sql
+-- Elements in either bitmap but not both
+SELECT roaring64_symmetric_difference(
+  ROARING64::from_string('{1,2,3,4}'),
+  ROARING64::from_string('{3,4,5,6}')
+) AS symmetric_difference_bitmap;
+-- Result: {1,2,5,6}
+```
+
 ## Type Format
 
 ### String Representation
@@ -149,6 +169,8 @@ Internally, bitmaps are stored in CRoaring's portable serialization format, whic
 |----------|-----------|---------|-------------|
 | `roaring64_union` | ROARING64, ROARING64 | ROARING64 | Union of two bitmaps (OR operation) |
 | `roaring64_intersection` | ROARING64, ROARING64 | ROARING64 | Intersection of two bitmaps (AND operation) |
+| `roaring64_difference` | ROARING64, ROARING64 | ROARING64 | Difference of two bitmaps (A \ B) |
+| `roaring64_symmetric_difference` | ROARING64, ROARING64 | ROARING64 | Symmetric difference of two bitmaps (XOR) |
 | `roaring64_contains` | ROARING64, INT | INT | Test membership (returns 1 or 0) |
 | `roaring64_cardinality` | ROARING64 | INT | Count elements in bitmap |
 
@@ -164,7 +186,7 @@ Internally, bitmaps are stored in CRoaring's portable serialization format, whic
 - Maximum serialized size: 8MB
 - Supports 64-bit unsigned integers (0 to 2^64-1)
 - Set operations require both operands to be ROARING64 type
-- Currently no difference/subtract operations (planned for v2.0)
+- Supports union, intersection, difference, and symmetric difference
 
 ## Examples
 

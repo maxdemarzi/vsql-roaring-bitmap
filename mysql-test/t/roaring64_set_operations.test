@@ -1,0 +1,20 @@
+# Test roaring64_set_operations for ROARING64 custom type
+
+INSTALL EXTENSION vsql_roaring_bitmap;
+SELECT roaring64_union(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{3,4,5}')
+) AS union_bitmap;
+SELECT roaring64_intersection(
+  ROARING64::from_string('{1,2,3}'),
+  ROARING64::from_string('{3,4,5}')
+) AS intersection_bitmap;
+SELECT roaring64_difference(
+  ROARING64::from_string('{1,2,3,4}'),
+  ROARING64::from_string('{3,4,5}')
+) AS difference_bitmap;
+SELECT roaring64_symmetric_difference(
+  ROARING64::from_string('{1,2,3,4}'),
+  ROARING64::from_string('{3,4,5,6}')
+) AS symmetric_difference_bitmap;
+UNINSTALL EXTENSION vsql_roaring_bitmap;

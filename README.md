@@ -311,6 +311,62 @@ SELECT roaring64_union(
 -- Result: {1,2}
 ```
 
+### k-Hop Reachability with ROARING64
+```sql
+DROP PROCEDURE IF EXISTS roaring64_khops;
+CREATE PROCEDURE roaring64_khops(
+  IN start_node BIGINT,
+  IN distance INT,
+  OUT reachable BIGINT)
+proc_body: BEGIN
+  DECLARE edge_src BIGINT;
+  DECLARE edge_dst BIGINT;
+  DECLARE frontier ROARING64;
+  DECLARE next_frontier ROARING64;
+  DECLARE seen ROARING64;
+  DECLARE done INT DEFAULT 0;
+  DECLARE remaining INT DEFAULT 0;
+  DECLARE edge_cursor CURSOR FOR SELECT src, dst FROM graph_edges;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+  SET seen = ROARING64::from_string(CONCAT('{', start_node, '}'));
+  SET frontier = ROARING64::from_string(CONCAT('{', start_node, '}'));
+  SET remaining = distance;
+
+  hop_loop: WHILE remaining > 0 DO
+    SET next_frontier = ROARING64::from_string('{}');
+    SET done = 0;
+    OPEN edge_cursor;
+
+    read_edges: LOOP
+      FETCH edge_cursor INTO edge_src, edge_dst;
+      IF done = 1 THEN
+        LEAVE read_edges;
+      END IF;
+      IF roaring64_contains(frontier, edge_src) = 1 THEN
+        SET next_frontier = roaring64_union(
+          next_frontier,
+          ROARING64::from_string(CONCAT('{', edge_dst, '}')));
+      END IF;
+    END LOOP;
+
+    CLOSE edge_cursor;
+    SET next_frontier = roaring64_difference(next_frontier, seen);
+    SET seen = roaring64_union(seen, next_frontier);
+    SET frontier = next_frontier;
+    SET remaining = remaining - 1;
+    IF roaring64_cardinality(frontier) = 0 THEN
+      LEAVE hop_loop;
+    END IF;
+  END WHILE;
+
+  SET seen = roaring64_difference(
+    seen,
+    ROARING64::from_string(CONCAT('{', start_node, '}')));
+  SET reachable = roaring64_cardinality(seen);
+END proc_body;
+```
+
 ## Building from Source
 
 ### With Pre-installed CRoaring

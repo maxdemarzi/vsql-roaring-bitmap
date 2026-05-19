@@ -538,6 +538,7 @@ constexpr auto ROARING64_TYPE =
         .from_string<&roaring64_from_string>()
         .to_string<&roaring64_to_string>()
         .compare<&roaring64_compare>()
+        .intrinsic_default_str("{}")
         .hash<&roaring64_hash>()
         .build();
 

@@ -385,6 +385,39 @@ void roaring64_run_optimize(CustomArg in, CustomResult out) {
   }
 }
 
+void roaring64_to_list(CustomArg in, StringResult out) {
+  if (in.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  Roaring64Map bitmap;
+  std::string error_msg;
+  if (!deserializeRoaring64Map(in, bitmap, error_msg)) {
+    out.error(error_msg);
+    return;
+  }
+
+  std::string value;
+  bool first = true;
+  for (auto it = bitmap.begin(); it != bitmap.end(); ++it) {
+    if (!first) {
+      value.push_back(',');
+    }
+    first = false;
+    value.append(std::to_string(*it));
+  }
+
+  auto buf = out.buffer();
+  size_t len = value.size();
+  if (len > buf.size()) {
+    out.error("ROARING64: output buffer too small");
+    return;
+  }
+  memcpy(buf.data(), value.data(), len);
+  out.set_length(len);
+}
+
 void roaring64_equals(CustomArg in_l, CustomArg in_r, IntResult out) {
   if (in_l.is_null() || in_r.is_null()) {
     out.set_null();
@@ -582,6 +615,12 @@ VEF_GENERATE_ENTRY_POINTS(
                   .returns(ROARING64_TYPE)
                   .param(ROARING64_TYPE)
                   .deterministic()
+                  .build())
+        .func(make_func<&roaring64_to_list>("roaring64_to_list")
+                  .returns(STRING)
+                  .param(ROARING64_TYPE)
+                  .deterministic()
+                  .buffer_size(65536)
                   .build())
         .func(make_func<&roaring64_equals>("roaring64_equals")
                   .returns(INT)

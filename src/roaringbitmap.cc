@@ -566,7 +566,7 @@ void roaring64_symmetric_difference(CustomArg in_l, CustomArg in_r, CustomResult
 constexpr auto ROARING64_TYPE =
     make_type<kROARING64>()
         .persisted_length(-1)
-        .max_decode_buffer_length(65536)
+        .max_decode_buffer_length(65535)
         .intrinsic_default_str("{}")
         .from_string<&roaring64_from_string>()
         .to_string<&roaring64_to_string>()
@@ -620,7 +620,7 @@ VEF_GENERATE_ENTRY_POINTS(
                   .returns(STRING)
                   .param(ROARING64_TYPE)
                   .deterministic()
-                  .buffer_size(65536)
+                  .buffer_size(65535)
                   .build())
         .func(make_func<&roaring64_equals>("roaring64_equals")
                   .returns(INT)

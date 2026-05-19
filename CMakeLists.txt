@@ -21,8 +21,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(EXTENSION_NAME "vsql_roaring_bitmap")
 
-# Find VillageSQL SDK
-SET(VillageSQL_SDK_DIR "/home/maxdemarzi/build/villagesql/villagesql-extension-sdk-0.0.4-dev")
+# Find VillageSQL SDK. Pass -DVillageSQL_BUILD_DIR=... for a local server
+# build tree, or -DVillageSQL_SDK_DIR=... for an explicit SDK install.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(VillageSQL REQUIRED)
 
@@ -53,7 +53,7 @@ if(NOT roaring_FOUND)
   set(ROARING_INCLUDE_DIR "${CMAKE_BINARY_DIR}/_deps/croaring-src/include")
   set(ROARING_LIB roaring)
 else()
-  set(ROARING_LIB roaring)
+  set(ROARING_LIB roaring::roaring)
 endif()
 
 # Create the roaring bitmap shared library
@@ -63,7 +63,7 @@ add_library(roaring_bitmap SHARED
 
 # Include directories
 target_include_directories(roaring_bitmap PRIVATE
-    ${VillageSQLExtensionFramework_INCLUDE_DIR}
+    ${VillageSQL_INCLUDE_DIR}
     ${ROARING_INCLUDE_DIR}
 )
 

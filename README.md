@@ -343,10 +343,10 @@ proc_body: BEGIN
       IF done = 1 THEN
         LEAVE read_edges;
       END IF;
+
       IF roaring64_contains(frontier, edge_src) = 1 THEN
-        SET next_frontier = roaring64_union(
-          next_frontier,
-          ROARING64::from_string(CONCAT('{', edge_dst, '}')));
+        SET next_frontier = roaring64_add(next_frontier, edge_dst);
+        SET seen = roaring64_add(seen, edge_dst);
       END IF;
     END LOOP;
 
@@ -360,9 +360,7 @@ proc_body: BEGIN
     END IF;
   END WHILE;
 
-  SET seen = roaring64_difference(
-    seen,
-    ROARING64::from_string(CONCAT('{', start_node, '}')));
+  SET seen = roaring64_remove(seen, start_node);
   SET reachable = roaring64_cardinality(seen);
 END proc_body;
 ```
